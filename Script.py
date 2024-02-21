@@ -1,44 +1,32 @@
-#install Biopython package 
-!pip install Biopython
-
-
-#import pakcages 
 from Bio import SeqIO
 from Bio.Seq import Seq
 from io import StringIO
 
-# Read fasta file here i am using colab so path is look liike this but it need to change with respect to location of file 
-input_file = '/content/influenza.fna'
-
 def extract_sequences(input_file, num_sequences=10):
     records = list(SeqIO.parse(input_file, "fasta"))
     extracted_sequences = records[:num_sequences]
     remaining_sequences = records[num_sequences:]
     return extracted_sequences, remaining_sequences
 
-def extract_sequences(input_file, num_sequences=10):
-    records = list(SeqIO.parse(input_file, "fasta"))
-    extracted_sequences = records[:num_sequences]
-    remaining_sequences = records[num_sequences:]
-    return extracted_sequences, remaining_sequences
+def create_bed_from_sequences(sequences):
+    bed_content = StringIO()
 
+    for i, seq_record in enumerate(sequences):
+        bed_content.write(f"{seq_record.id}\t0\t{len(seq_record)}\tSequence_{i+1}\n")
+
+    bed_content.seek(0)
+    return bed_content.read()
 
 def reverse_complement(sequence):
     return str(Seq(sequence).reverse_complement())
 
+# Replace 'your_input.fasta' with the path to your input FASTA file
+input_file = '/content/influenza.fna'
+# Replace 'output_prefix' with the desired prefix for output files
+output_prefix = 'output_sequence'
 
-# To extract 10 sequences from multiple sequence fasta file 
+# Extract 10 sequences
 extracted_sequences, remaining_sequences = extract_sequences(input_file, num_sequences=10)
-
-modified_sequences = []
-for seq_record in extracted_sequences:
-    original_sequence = str(seq_record.seq)
-    reversed_complement_sequence = reverse_complement(original_sequence)
-    modified_sequence = reversed_complement_sequence[:-1] + 'A'  # Change the last nucleotide to 'A'
-    modified_sequences.append(SeqIO.SeqRecord(Seq(modified_sequence), id=seq_record.id, description=seq_record.description))
-
-#lets see output now 
-output_prefix = 'influenza'
 
 # Save the extracted sequences to a new file
 output_file_path = f'{output_prefix}_extracted.fasta'
@@ -48,6 +36,20 @@ SeqIO.write(extracted_sequences, output_file_path, "fasta")
 bed_content = create_bed_from_sequences(extracted_sequences)
 
 # Print BED content
+print(bed_content)
+
+# Optionally, save the BED content to a file
+with open('output_bed_file.bed', 'w') as bed_file:
+    bed_file.write(bed_content)
+
+# Reverse complement and make a single nucleotide change
+modified_sequences = []
+for seq_record in extracted_sequences:
+    original_sequence = str(seq_record.seq)
+    reversed_complement_sequence = reverse_complement(original_sequence)
+    modified_sequence = reversed_complement_sequence[:-1] + 'A'  # Change the last nucleotide to 'A'
+    modified_sequences.append(SeqIO.SeqRecord(Seq(modified_sequence), id=seq_record.id, description=seq_record.description))
+
 print(bed_content)
 
 with open('influenza.bed', 'w') as bed_file:
@@ -64,22 +66,3 @@ for seq_record in all_sequences:
 
 modified_output_file_path = f'{output_prefix}_modified.fasta'
 SeqIO.write(all_sequences, modified_output_file_path, "fasta")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
