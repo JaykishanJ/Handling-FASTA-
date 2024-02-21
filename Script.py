@@ -1,6 +1,14 @@
+#install Biopython package 
+!pip install Biopython
+
+
+#import pakcages 
 from Bio import SeqIO
 from Bio.Seq import Seq
 from io import StringIO
+
+# Read fasta file here i am using colab so path is look liike this but it need to change with respect to location of file 
+input_file = '/content/influenza.fna'
 
 def extract_sequences(input_file, num_sequences=10):
     records = list(SeqIO.parse(input_file, "fasta"))
@@ -20,10 +28,8 @@ def create_bed_from_sequences(sequences):
 def reverse_complement(sequence):
     return str(Seq(sequence).reverse_complement())
 
-# Replace 'your_input.fasta' with the path to your input FASTA file
-input_file = '/content/influenza.fna'
-# Replace 'output_prefix' with the desired prefix for output files
-output_prefix = 'output_sequence'
+#lets see output now 
+output_prefix = 'influenza'
 
 # Extract 10 sequences
 extracted_sequences, remaining_sequences = extract_sequences(input_file, num_sequences=10)
@@ -38,7 +44,7 @@ bed_content = create_bed_from_sequences(extracted_sequences)
 # Print BED content
 print(bed_content)
 
-# Optionally, save the BED content to a file
+#save the BED content to a file
 with open('output_bed_file.bed', 'w') as bed_file:
     bed_file.write(bed_content)
 
