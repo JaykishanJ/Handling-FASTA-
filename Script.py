@@ -1,5 +1,5 @@
 #install Biopython package 
-pip install Biopython
+!pip install Biopython
 
 
 #import pakcages 
@@ -9,9 +9,6 @@ from io import StringIO
 
 # Read fasta file here i am using colab so path is look liike this but it need to change with respect to location of file 
 input_file = '/content/influenza.fna'
-
-# To extract 10 sequences from multiple sequence fasta file 
-extracted_sequences, remaining_sequences = extract_sequences(input_file, num_sequences=10)
 
 def extract_sequences(input_file, num_sequences=10):
     records = list(SeqIO.parse(input_file, "fasta"))
@@ -29,6 +26,9 @@ def extract_sequences(input_file, num_sequences=10):
 def reverse_complement(sequence):
     return str(Seq(sequence).reverse_complement())
 
+
+# To extract 10 sequences from multiple sequence fasta file 
+extracted_sequences, remaining_sequences = extract_sequences(input_file, num_sequences=10)
 
 modified_sequences = []
 for seq_record in extracted_sequences:
