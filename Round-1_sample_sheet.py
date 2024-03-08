@@ -40,7 +40,7 @@ import pandas as pd
 
 # Read csv file here i have used colab so path is look like this user need to change path according to file in
 
-respective folder
+#respective folder
 
 df = pd.read_csv('/content/problem_sheet.csv', header=None)
 
