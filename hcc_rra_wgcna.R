@@ -205,9 +205,9 @@ fetch_expression_sets <- function(gse) {
 }
 
 deg_results <- list()
-ranked_lists_up <- list()
-ranked_lists_down <- list()
-prepared_cache <- list()
+ranked_gene_lists_upregulated <- list()
+ranked_gene_lists_downregulated <- list()
+wgcna_prepared <- NULL
 
 for (i in seq_len(nrow(datasets))) {
   gse <- datasets$gse[i]
@@ -231,29 +231,31 @@ for (i in seq_len(nrow(datasets))) {
   if (is.null(prepared)) {
     next
   }
-  prepared_cache[[key]] <- prepared
+  if (key == wgcna_dataset_key) {
+    wgcna_prepared <- prepared
+  }
   deg <- run_limma(prepared$expr, prepared$group)
   deg_results[[key]] <- deg
   fwrite(deg, file = file.path(deg_dir, paste0(key, "_limma.csv")))
 
   ranks <- extract_ranked_up_down_genes(deg)
-  ranked_lists_up[[key]] <- ranks$up
-  ranked_lists_down[[key]] <- ranks$down
+  ranked_gene_lists_upregulated[[key]] <- ranks$up
+  ranked_gene_lists_downregulated[[key]] <- ranks$down
 }
 
 if (length(deg_results) == 0) {
   stop("No differential expression results produced.")
 }
 
-if (length(ranked_lists_up) > 1) {
-  rra_up <- aggregateRanks(ranked_lists_up)
+if (length(ranked_gene_lists_upregulated) > 1) {
+  rra_up <- aggregateRanks(ranked_gene_lists_upregulated)
   fwrite(rra_up, file = file.path(rra_dir, "rra_up.csv"))
 } else {
   rra_up <- NULL
 }
 
-if (length(ranked_lists_down) > 1) {
-  rra_down <- aggregateRanks(ranked_lists_down)
+if (length(ranked_gene_lists_downregulated) > 1) {
+  rra_down <- aggregateRanks(ranked_gene_lists_downregulated)
   fwrite(rra_down, file = file.path(rra_dir, "rra_down.csv"))
 } else {
   rra_down <- NULL
@@ -261,28 +263,28 @@ if (length(ranked_lists_down) > 1) {
 
 if (!is.null(rra_up)) {
   rra_up_top <- head(get_gene_names(rra_up), rra_top_n)
-} else if (length(ranked_lists_up) > 0) {
-  rra_up_top <- unique(unlist(lapply(ranked_lists_up, head, rra_top_n)))
+} else if (length(ranked_gene_lists_upregulated) > 0) {
+  rra_up_top <- unique(unlist(lapply(ranked_gene_lists_upregulated, head, rra_top_n)))
 } else {
   rra_up_top <- character()
 }
 
 if (!is.null(rra_down)) {
   rra_down_top <- head(get_gene_names(rra_down), rra_top_n)
-} else if (length(ranked_lists_down) > 0) {
-  rra_down_top <- unique(unlist(lapply(ranked_lists_down, head, rra_top_n)))
+} else if (length(ranked_gene_lists_downregulated) > 0) {
+  rra_down_top <- unique(unlist(lapply(ranked_gene_lists_downregulated, head, rra_top_n)))
 } else {
   rra_down_top <- character()
 }
 
 rra_union_top <- unique(c(rra_up_top, rra_down_top))
 
-if (!wgcna_dataset_key %in% names(prepared_cache)) {
+if (is.null(wgcna_prepared)) {
   stop("WGCNA dataset not available: ", wgcna_dataset_key)
 }
 
 message("Running WGCNA on ", wgcna_dataset_key)
-wgcna_data <- prepared_cache[[wgcna_dataset_key]]
+wgcna_data <- wgcna_prepared
 expr <- wgcna_data$expr
 group <- wgcna_data$group
 
@@ -295,6 +297,9 @@ if (nrow(expr) > wgcna_max_genes) {
 datExpr <- t(expr)
 wgcna_qc_results <- goodSamplesGenes(datExpr, verbose = 0)
 if (!wgcna_qc_results$allOK) {
+  removed_samples <- sum(!wgcna_qc_results$goodSamples)
+  removed_genes <- sum(!wgcna_qc_results$goodGenes)
+  message("WGCNA QC removed ", removed_samples, " samples and ", removed_genes, " genes.")
   datExpr <- datExpr[wgcna_qc_results$goodSamples, wgcna_qc_results$goodGenes]
 }
 
