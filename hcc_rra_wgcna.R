@@ -2,8 +2,8 @@
 
 options(stringsAsFactors = FALSE)
 
-cran_packages <- c("data.table")
-bioc_packages <- c("GEOquery", "limma", "RobustRankAggreg", "WGCNA")
+cran_packages <- c("data.table", "RobustRankAggreg")
+bioc_packages <- c("GEOquery", "limma", "WGCNA")
 
 install_if_missing <- function(pkgs, bioc = FALSE) {
   for (pkg in pkgs) {
@@ -64,11 +64,13 @@ datasets$key <- make_dataset_key(datasets$gse, datasets$gpl)
 strict_grouping <- FALSE
 get_gpl <- TRUE
 rra_top_n <- 200
+log2_transform_threshold <- 50
 wgcna_dataset_key <- "GSE14520_GPL571"
 wgcna_max_genes <- 5000
 wgcna_min_module_size <- 30
 wgcna_merge_cut_height <- 0.25
 wgcna_default_soft_power <- 6
+wgcna_top_hub_genes <- 50
 find_symbol_column <- function(fdata) {
   candidates <- c(
     "Gene Symbol", "Gene symbol", "GENE_SYMBOL", "Symbol", "SYMBOL",
@@ -128,7 +130,7 @@ classify_tumor_normal_groups <- function(pheno, key) {
 
 prepare_eset <- function(eset, key) {
   expr <- exprs(eset)
-  if (max(expr, na.rm = TRUE) > 50) {
+  if (max(expr, na.rm = TRUE) > log2_transform_threshold) {
     expr <- log2(expr + 1)
   }
 
@@ -185,7 +187,12 @@ extract_gene_names_from_rra <- function(rra) {
   if ("name" %in% names(rra)) {
     return(rra$name)
   }
-  warning("Unexpected RRA column names; using first column as gene names.")
+  warning(
+    sprintf(
+      "Unexpected RRA column names (found: %s); using first column as gene names.",
+      paste(names(rra), collapse = ", ")
+    )
+  )
   rra[[1]]
 }
 
@@ -293,7 +300,11 @@ if (!wgcna_qc_results$allOK) {
 
 powers <- 1:20
 sft <- pickSoftThreshold(datExpr, powerVector = powers, verbose = 0)
-soft_power <- if (!is.na(sft$powerEstimate)) sft$powerEstimate else wgcna_default_soft_power
+soft_power <- sft$powerEstimate
+if (is.na(soft_power)) {
+  soft_power <- wgcna_default_soft_power
+  message("Using default WGCNA soft power: ", soft_power)
+}
 
 net <- blockwiseModules(
   datExpr,
@@ -344,7 +355,7 @@ module_summary <- data.frame(
 module_summary <- module_summary[order(-module_summary$kWithin), ]
 fwrite(module_summary, file = file.path(wgcna_dir, paste0(wgcna_dataset_key, "_", target_color, "_module_genes.csv")))
 
-hub_genes <- head(module_summary, 50)
+hub_genes <- head(module_summary, wgcna_top_hub_genes)
 fwrite(hub_genes, file = file.path(wgcna_dir, paste0(wgcna_dataset_key, "_", target_color, "_hub_genes.csv")))
 
 candidate_hubs <- intersect(module_genes, rra_union_top)
