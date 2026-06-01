@@ -9,7 +9,8 @@ from Bio.SeqRecord import SeqRecord
 
 
 def extract_sequences(input_file: Path, num_sequences: int = 10):
-    records = list(SeqIO.parse(str(input_file), "fasta"))
+    with input_file.open() as handle:
+        records = list(SeqIO.parse(handle, "fasta"))
     extracted_sequences = records[:num_sequences]
     remaining_sequences = records[num_sequences:]
     return extracted_sequences, remaining_sequences

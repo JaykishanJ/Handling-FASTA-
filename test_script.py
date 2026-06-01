@@ -24,7 +24,8 @@ class TestProcessFasta(unittest.TestCase):
             bed_content = result["bed_path"].read_text()
             self.assertEqual(bed_content, "seq1\t0\t4\tSequence_1\n")
 
-            modified_records = list(SeqIO.parse(result["modified_path"], "fasta"))
+            with result["modified_path"].open() as handle:
+                modified_records = list(SeqIO.parse(handle, "fasta"))
             ids = {record.id for record in modified_records}
             self.assertEqual(ids, {"seq1", "seq2"})
 
