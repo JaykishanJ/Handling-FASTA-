@@ -71,6 +71,7 @@ wgcna_min_module_size <- 30
 wgcna_merge_cut_height <- 0.25
 wgcna_default_soft_power <- 6
 wgcna_top_hub_genes <- 50
+wgcna_network_type <- "signed"
 get_symbol_column_name <- function(fdata) {
   candidates <- c(
     "Gene Symbol", "Gene symbol", "GENE_SYMBOL", "Symbol", "SYMBOL",
@@ -308,13 +309,13 @@ sft <- pickSoftThreshold(datExpr, powerVector = powers, verbose = 0)
 soft_power <- sft$powerEstimate
 if (is.na(soft_power)) {
   soft_power <- wgcna_default_soft_power
-  message("Using default WGCNA soft power (", soft_power, ") for a signed network.")
+  message("Using default WGCNA soft power (", soft_power, ") for a ", wgcna_network_type, " network.")
 }
 
 net <- blockwiseModules(
   datExpr,
   power = soft_power,
-  TOMType = "signed",
+  TOMType = wgcna_network_type,
   minModuleSize = wgcna_min_module_size,
   mergeCutHeight = wgcna_merge_cut_height,
   numericLabels = TRUE,
@@ -351,12 +352,12 @@ if (length(module_genes) == 0) {
 kme <- cor(datExpr, MEs, use = "p")
 target_me <- paste0("ME", target_color)
 kme_target <- kme[, target_me]
-gene_significance <- cor(datExpr, tumor_status$Tumor, use = "p")
+gene_tumor_correlation <- cor(datExpr, tumor_status$Tumor, use = "p")
 
 module_summary <- data.frame(
   gene = module_genes,
   kME = kme_target[module_genes],
-  geneSignificance = gene_significance[module_genes]
+  geneTumorCorrelation = gene_tumor_correlation[module_genes]
 )
 module_summary <- module_summary[order(-abs(module_summary$kME)), ]
 fwrite(module_summary, file = file.path(wgcna_dir, paste0(wgcna_dataset_key, "_", target_color, "_module_genes.csv")))
