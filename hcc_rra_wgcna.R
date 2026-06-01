@@ -71,7 +71,7 @@ wgcna_min_module_size <- 30
 wgcna_merge_cut_height <- 0.25
 wgcna_default_soft_power <- 6
 wgcna_top_hub_genes <- 50
-find_symbol_column <- function(fdata) {
+get_symbol_column_name <- function(fdata) {
   candidates <- c(
     "Gene Symbol", "Gene symbol", "GENE_SYMBOL", "Symbol", "SYMBOL",
     "gene_assignment", "Gene Assignment", "GENE", "GENES", "ILMN_Gene"
@@ -85,7 +85,7 @@ find_symbol_column <- function(fdata) {
   colnames(fdata)[idx]
 }
 
-clean_symbol <- function(symbols) {
+clean_symbols <- function(symbols) {
   symbols <- as.character(symbols)
   symbols <- gsub("\\s*///\\s*", ";", symbols)
   symbols <- gsub("\\s*//\\s*", ";", symbols)
@@ -107,7 +107,7 @@ assign_tumor_normal_groups <- function(pheno, key) {
   combined <- apply(pheno, 1, function(x) paste(x, collapse = " ; "))
   combined_lower <- tolower(combined)
   combined_lower <- gsub("tumour", "tumor", combined_lower)
-  is_normal <- grepl("normal|adjacent|non[- ]?tumor|control|healthy", combined_lower)
+  is_normal <- grepl("normal|adjacent|non[\\s-]?tumor|control|healthy", combined_lower)
   is_tumor <- grepl("tumor|carcinoma|hcc|hepatocellular", combined_lower)
   group <- ifelse(is_tumor & !is_normal, "Tumor",
     ifelse(is_normal, "Normal", NA_character_)
@@ -135,11 +135,11 @@ prepare_eset <- function(eset, key) {
   }
 
   fdata <- fData(eset)
-  symbol_col <- find_symbol_column(fdata)
+  symbol_col <- get_symbol_column_name(fdata)
   if (is.na(symbol_col)) {
     stop("No gene symbol column found for ", key)
   }
-  symbols <- clean_symbol(fdata[[symbol_col]])
+  symbols <- clean_symbols(fdata[[symbol_col]])
   keep <- !is.na(symbols) & symbols != ""
   expr <- expr[keep, , drop = FALSE]
   symbols <- symbols[keep]
@@ -177,7 +177,7 @@ extract_ranked_up_down_genes <- function(res) {
   )
 }
 
-get_gene_names_from_result <- function(rra) {
+get_gene_names <- function(rra) {
   if (is.null(rra)) {
     return(character())
   }
@@ -196,7 +196,7 @@ get_gene_names_from_result <- function(rra) {
   rra[[1]]
 }
 
-fetch_esets <- function(gse) {
+fetch_expression_sets <- function(gse) {
   geo <- getGEO(gse, GSEMatrix = TRUE, getGPL = get_gpl)
   if (inherits(geo, "ExpressionSet")) {
     return(list(geo))
@@ -214,7 +214,7 @@ for (i in seq_len(nrow(datasets))) {
   gpl <- datasets$gpl[i]
   key <- datasets$key[i]
   message("Processing ", key)
-  esets <- fetch_esets(gse)
+  esets <- fetch_expression_sets(gse)
   eset <- NULL
   for (candidate in esets) {
     if (annotation(candidate) == gpl) {
@@ -260,7 +260,7 @@ if (length(ranked_lists_down) > 1) {
 }
 
 if (!is.null(rra_up)) {
-  rra_up_top <- head(get_gene_names_from_result(rra_up), rra_top_n)
+  rra_up_top <- head(get_gene_names(rra_up), rra_top_n)
 } else if (length(ranked_lists_up) > 0) {
   rra_up_top <- unique(unlist(lapply(ranked_lists_up, head, rra_top_n)))
 } else {
@@ -268,7 +268,7 @@ if (!is.null(rra_up)) {
 }
 
 if (!is.null(rra_down)) {
-  rra_down_top <- head(get_gene_names_from_result(rra_down), rra_top_n)
+  rra_down_top <- head(get_gene_names(rra_down), rra_top_n)
 } else if (length(ranked_lists_down) > 0) {
   rra_down_top <- unique(unlist(lapply(ranked_lists_down, head, rra_top_n)))
 } else {
