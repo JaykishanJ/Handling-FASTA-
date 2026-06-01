@@ -103,7 +103,7 @@ clean_symbol <- function(symbols) {
   cleaned
 }
 
-classify_tumor_normal_groups <- function(pheno, key) {
+assign_tumor_normal_groups <- function(pheno, key) {
   combined <- apply(pheno, 1, function(x) paste(x, collapse = " ; "))
   combined_lower <- tolower(combined)
   combined_lower <- gsub("tumour", "tumor", combined_lower)
@@ -146,7 +146,7 @@ prepare_eset <- function(eset, key) {
   expr <- limma::avereps(expr, ID = symbols)
 
   pheno <- pData(eset)
-  group <- classify_tumor_normal_groups(pheno, key)
+  group <- assign_tumor_normal_groups(pheno, key)
   if (is.null(group)) {
     return(NULL)
   }
@@ -177,7 +177,7 @@ extract_ranked_up_down_genes <- function(res) {
   )
 }
 
-extract_gene_names_from_rra <- function(rra) {
+get_gene_names_from_result <- function(rra) {
   if (is.null(rra)) {
     return(character())
   }
@@ -260,7 +260,7 @@ if (length(ranked_lists_down) > 1) {
 }
 
 if (!is.null(rra_up)) {
-  rra_up_top <- head(extract_gene_names_from_rra(rra_up), rra_top_n)
+  rra_up_top <- head(get_gene_names_from_result(rra_up), rra_top_n)
 } else if (length(ranked_lists_up) > 0) {
   rra_up_top <- unique(unlist(lapply(ranked_lists_up, head, rra_top_n)))
 } else {
@@ -268,7 +268,7 @@ if (!is.null(rra_up)) {
 }
 
 if (!is.null(rra_down)) {
-  rra_down_top <- head(extract_gene_names_from_rra(rra_down), rra_top_n)
+  rra_down_top <- head(get_gene_names_from_result(rra_down), rra_top_n)
 } else if (length(ranked_lists_down) > 0) {
   rra_down_top <- unique(unlist(lapply(ranked_lists_down, head, rra_top_n)))
 } else {
@@ -303,7 +303,7 @@ sft <- pickSoftThreshold(datExpr, powerVector = powers, verbose = 0)
 soft_power <- sft$powerEstimate
 if (is.na(soft_power)) {
   soft_power <- wgcna_default_soft_power
-  message("Using default WGCNA soft power: ", soft_power)
+  message("Using default WGCNA soft power (", soft_power, ") for a signed network.")
 }
 
 net <- blockwiseModules(
@@ -323,8 +323,12 @@ tumor_status <- data.frame(Tumor = as.numeric(group == "Tumor"))
 module_trait_cor <- cor(MEs, tumor_status, use = "p")
 module_trait_p <- corPvalueStudent(module_trait_cor, nrow(datExpr))
 
+module_names <- rownames(module_trait_cor)
+if (all(startsWith(module_names, "ME"))) {
+  module_names <- sub("^ME", "", module_names)
+}
 module_trait <- data.frame(
-  module = gsub("^ME", "", rownames(module_trait_cor)),
+  module = module_names,
   correlation = module_trait_cor[, 1],
   p_value = module_trait_p[, 1]
 )
@@ -339,8 +343,6 @@ if (length(module_genes) == 0) {
   stop("No genes found for module ", target_color)
 }
 
-adjacency_mat <- adjacency(datExpr, power = soft_power, type = "signed")
-intra_conn <- intramodularConnectivity(adjacency_mat, module_colors)
 kme <- cor(datExpr, MEs, use = "p")
 target_me <- paste0("ME", target_color)
 kme_target <- kme[, target_me]
@@ -349,10 +351,9 @@ gene_significance <- cor(datExpr, tumor_status$Tumor, use = "p")
 module_summary <- data.frame(
   gene = module_genes,
   kME = kme_target[module_genes],
-  geneSignificance = gene_significance[module_genes],
-  kWithin = intra_conn$kWithin[module_genes]
+  geneSignificance = gene_significance[module_genes]
 )
-module_summary <- module_summary[order(-module_summary$kWithin), ]
+module_summary <- module_summary[order(-abs(module_summary$kME)), ]
 fwrite(module_summary, file = file.path(wgcna_dir, paste0(wgcna_dataset_key, "_", target_color, "_module_genes.csv")))
 
 hub_genes <- head(module_summary, wgcna_top_hub_genes)
