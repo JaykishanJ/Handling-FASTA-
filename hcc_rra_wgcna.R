@@ -103,8 +103,8 @@ clean_symbol <- function(symbols) {
 infer_groups <- function(pheno, key) {
   combined <- apply(pheno, 1, function(x) paste(x, collapse = " ; "))
   combined_lower <- tolower(combined)
-  is_normal <- grepl("normal|adjacent|non[- ]?tumou?r|control|healthy", combined_lower)
-  is_tumor <- grepl("tumou?r|carcinoma|hcc|hepatocellular", combined_lower)
+  is_normal <- grepl("normal|adjacent|non[- ]?(tumor|tumour)|control|healthy", combined_lower)
+  is_tumor <- grepl("tumor|tumour|carcinoma|hcc|hepatocellular", combined_lower)
   group <- ifelse(is_tumor & !is_normal, "Tumor",
     ifelse(is_normal, "Normal", NA_character_)
   )
@@ -266,9 +266,9 @@ if (nrow(expr) > wgcna_max_genes) {
 }
 
 datExpr <- t(expr)
-good <- goodSamplesGenes(datExpr, verbose = 0)
-if (!good$allOK) {
-  datExpr <- datExpr[good$goodSamples, good$goodGenes]
+sample_gene_qc <- goodSamplesGenes(datExpr, verbose = 0)
+if (!sample_gene_qc$allOK) {
+  datExpr <- datExpr[sample_gene_qc$goodSamples, sample_gene_qc$goodGenes]
 }
 
 powers <- 1:20
@@ -313,12 +313,12 @@ intra_conn <- intramodularConnectivity(adjacency_mat, module_colors)
 kme <- cor(datExpr, MEs, use = "p")
 target_me <- paste0("ME", target_color)
 kme_target <- kme[, target_me]
-gs <- cor(datExpr, trait$Tumor, use = "p")
+gene_significance <- cor(datExpr, trait$Tumor, use = "p")
 
 module_summary <- data.frame(
   gene = module_genes,
   kME = kme_target[module_genes],
-  geneSignificance = gs[module_genes],
+  geneSignificance = gene_significance[module_genes],
   kWithin = intra_conn$kWithin[module_genes]
 )
 module_summary <- module_summary[order(-module_summary$kWithin), ]
