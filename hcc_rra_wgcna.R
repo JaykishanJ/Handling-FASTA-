@@ -101,7 +101,7 @@ clean_symbol <- function(symbols) {
   cleaned
 }
 
-infer_groups <- function(pheno, key) {
+classify_tumor_normal_groups <- function(pheno, key) {
   combined <- apply(pheno, 1, function(x) paste(x, collapse = " ; "))
   combined_lower <- tolower(combined)
   combined_lower <- gsub("tumour", "tumor", combined_lower)
@@ -144,7 +144,7 @@ prepare_eset <- function(eset, key) {
   expr <- limma::avereps(expr, ID = symbols)
 
   pheno <- pData(eset)
-  group <- infer_groups(pheno, key)
+  group <- classify_tumor_normal_groups(pheno, key)
   if (is.null(group)) {
     return(NULL)
   }
@@ -163,7 +163,7 @@ run_limma <- function(expr, group) {
   res
 }
 
-rank_for_rra <- function(res) {
+extract_ranked_up_down_genes <- function(res) {
   res <- res[!is.na(res$logFC) & !is.na(res$P.Value), ]
   up <- res[res$logFC > 0, ]
   down <- res[res$logFC < 0, ]
@@ -175,7 +175,7 @@ rank_for_rra <- function(res) {
   )
 }
 
-rra_gene_names <- function(rra) {
+extract_gene_names_from_rra <- function(rra) {
   if (is.null(rra)) {
     return(character())
   }
@@ -185,6 +185,7 @@ rra_gene_names <- function(rra) {
   if ("name" %in% names(rra)) {
     return(rra$name)
   }
+  warning("Unexpected RRA column names; using first column as gene names.")
   rra[[1]]
 }
 
@@ -228,7 +229,7 @@ for (i in seq_len(nrow(datasets))) {
   deg_results[[key]] <- deg
   fwrite(deg, file = file.path(deg_dir, paste0(key, "_limma.csv")))
 
-  ranks <- rank_for_rra(deg)
+  ranks <- extract_ranked_up_down_genes(deg)
   ranked_lists_up[[key]] <- ranks$up
   ranked_lists_down[[key]] <- ranks$down
 }
@@ -252,7 +253,7 @@ if (length(ranked_lists_down) > 1) {
 }
 
 if (!is.null(rra_up)) {
-  rra_up_top <- head(rra_gene_names(rra_up), rra_top_n)
+  rra_up_top <- head(extract_gene_names_from_rra(rra_up), rra_top_n)
 } else if (length(ranked_lists_up) > 0) {
   rra_up_top <- unique(unlist(lapply(ranked_lists_up, head, rra_top_n)))
 } else {
@@ -260,7 +261,7 @@ if (!is.null(rra_up)) {
 }
 
 if (!is.null(rra_down)) {
-  rra_down_top <- head(rra_gene_names(rra_down), rra_top_n)
+  rra_down_top <- head(extract_gene_names_from_rra(rra_down), rra_top_n)
 } else if (length(ranked_lists_down) > 0) {
   rra_down_top <- unique(unlist(lapply(ranked_lists_down, head, rra_top_n)))
 } else {
@@ -285,9 +286,9 @@ if (nrow(expr) > wgcna_max_genes) {
 }
 
 datExpr <- t(expr)
-sample_gene_qc <- goodSamplesGenes(datExpr, verbose = 0)
-if (!sample_gene_qc$allOK) {
-  datExpr <- datExpr[sample_gene_qc$goodSamples, sample_gene_qc$goodGenes]
+wgcna_qc_results <- goodSamplesGenes(datExpr, verbose = 0)
+if (!wgcna_qc_results$allOK) {
+  datExpr <- datExpr[wgcna_qc_results$goodSamples, wgcna_qc_results$goodGenes]
 }
 
 powers <- 1:20
@@ -307,8 +308,8 @@ net <- blockwiseModules(
 
 module_colors <- labels2colors(net$colors)
 MEs <- net$MEs
-trait <- data.frame(Tumor = as.numeric(group == "Tumor"))
-module_trait_cor <- cor(MEs, trait, use = "p")
+tumor_status <- data.frame(Tumor = as.numeric(group == "Tumor"))
+module_trait_cor <- cor(MEs, tumor_status, use = "p")
 module_trait_p <- corPvalueStudent(module_trait_cor, nrow(datExpr))
 
 module_trait <- data.frame(
@@ -332,7 +333,7 @@ intra_conn <- intramodularConnectivity(adjacency_mat, module_colors)
 kme <- cor(datExpr, MEs, use = "p")
 target_me <- paste0("ME", target_color)
 kme_target <- kme[, target_me]
-gene_significance <- cor(datExpr, trait$Tumor, use = "p")
+gene_significance <- cor(datExpr, tumor_status$Tumor, use = "p")
 
 module_summary <- data.frame(
   gene = module_genes,
