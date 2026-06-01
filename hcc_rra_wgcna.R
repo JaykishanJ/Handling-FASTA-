@@ -33,6 +33,10 @@ suppressPackageStartupMessages({
 
 WGCNA::allowWGCNAThreads()
 
+make_dataset_key <- function(gse, gpl) {
+  paste(gse, gpl, sep = "_")
+}
+
 output_dir <- "outputs"
 deg_dir <- file.path(output_dir, "deg")
 sample_dir <- file.path(output_dir, "sample_annotations")
@@ -55,6 +59,7 @@ datasets <- data.frame(
   ),
   stringsAsFactors = FALSE
 )
+datasets$key <- make_dataset_key(datasets$gse, datasets$gpl)
 
 strict_grouping <- FALSE
 get_gpl <- TRUE
@@ -63,11 +68,7 @@ wgcna_dataset_key <- "GSE14520_GPL571"
 wgcna_max_genes <- 5000
 wgcna_min_module_size <- 30
 wgcna_merge_cut_height <- 0.25
-
-make_dataset_key <- function(gse, gpl) {
-  paste(gse, gpl, sep = "_")
-}
-
+wgcna_default_soft_power <- 6
 find_symbol_column <- function(fdata) {
   candidates <- c(
     "Gene Symbol", "Gene symbol", "GENE_SYMBOL", "Symbol", "SYMBOL",
@@ -103,8 +104,9 @@ clean_symbol <- function(symbols) {
 infer_groups <- function(pheno, key) {
   combined <- apply(pheno, 1, function(x) paste(x, collapse = " ; "))
   combined_lower <- tolower(combined)
-  is_normal <- grepl("normal|adjacent|non[- ]?(tumor|tumour)|control|healthy", combined_lower)
-  is_tumor <- grepl("tumor|tumour|carcinoma|hcc|hepatocellular", combined_lower)
+  combined_lower <- gsub("tumour", "tumor", combined_lower)
+  is_normal <- grepl("normal|adjacent|non[- ]?tumor|control|healthy", combined_lower)
+  is_tumor <- grepl("tumor|carcinoma|hcc|hepatocellular", combined_lower)
   group <- ifelse(is_tumor & !is_normal, "Tumor",
     ifelse(is_normal, "Normal", NA_character_)
   )
@@ -173,6 +175,19 @@ rank_for_rra <- function(res) {
   )
 }
 
+rra_gene_names <- function(rra) {
+  if (is.null(rra)) {
+    return(character())
+  }
+  if ("Name" %in% names(rra)) {
+    return(rra$Name)
+  }
+  if ("name" %in% names(rra)) {
+    return(rra$name)
+  }
+  rra[[1]]
+}
+
 fetch_esets <- function(gse) {
   geo <- getGEO(gse, GSEMatrix = TRUE, getGPL = get_gpl)
   if (inherits(geo, "ExpressionSet")) {
@@ -189,7 +204,7 @@ prepared_cache <- list()
 for (i in seq_len(nrow(datasets))) {
   gse <- datasets$gse[i]
   gpl <- datasets$gpl[i]
-  key <- make_dataset_key(gse, gpl)
+  key <- datasets$key[i]
   message("Processing ", key)
   esets <- fetch_esets(gse)
   eset <- NULL
@@ -236,14 +251,18 @@ if (length(ranked_lists_down) > 1) {
   rra_down <- NULL
 }
 
-if (length(ranked_lists_up) > 0) {
-  rra_up_top <- unique(head(unlist(ranked_lists_up), rra_top_n))
+if (!is.null(rra_up)) {
+  rra_up_top <- head(rra_gene_names(rra_up), rra_top_n)
+} else if (length(ranked_lists_up) > 0) {
+  rra_up_top <- unique(unlist(lapply(ranked_lists_up, head, rra_top_n)))
 } else {
   rra_up_top <- character()
 }
 
-if (length(ranked_lists_down) > 0) {
-  rra_down_top <- unique(head(unlist(ranked_lists_down), rra_top_n))
+if (!is.null(rra_down)) {
+  rra_down_top <- head(rra_gene_names(rra_down), rra_top_n)
+} else if (length(ranked_lists_down) > 0) {
+  rra_down_top <- unique(unlist(lapply(ranked_lists_down, head, rra_top_n)))
 } else {
   rra_down_top <- character()
 }
@@ -273,7 +292,7 @@ if (!sample_gene_qc$allOK) {
 
 powers <- 1:20
 sft <- pickSoftThreshold(datExpr, powerVector = powers, verbose = 0)
-soft_power <- if (!is.na(sft$powerEstimate)) sft$powerEstimate else 6
+soft_power <- if (!is.na(sft$powerEstimate)) sft$powerEstimate else wgcna_default_soft_power
 
 net <- blockwiseModules(
   datExpr,
