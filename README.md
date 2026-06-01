@@ -36,8 +36,8 @@ The script performs the following tasks:
 
 1. **Input and Output Setup**
 
-   * Input file: `Influenza.fna`
-   * Output files:
+   * Input file: `influenza.fna`
+   * Output files (written to the current directory by default):
 
      * `influenza_extracted.fasta`
      * `influenza.bed`
@@ -73,7 +73,13 @@ The script performs the following tasks:
 ## 📦 Example Usage
 
 ```bash
-python handle_fasta.py
+python Script.py
+```
+
+Optional arguments:
+
+```bash
+python Script.py --input influenza.fna --num-sequences 10 --output-prefix influenza --output-dir .
 ```
 
 The script will:
